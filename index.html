@@ -127,7 +127,6 @@ async function payNow() {
       callbackUrl: 'https://yourdomain.com/payment-callback'
     })
   });
-
   const data = await response.json();
   if (data.status === 200) {
     window.location.href = data.data.authorizationUrl;
@@ -138,4 +137,5 @@ async function payNow() {
 </script>
 </body>
 </html>
+
 
