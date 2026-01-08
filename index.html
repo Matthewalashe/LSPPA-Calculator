@@ -74,33 +74,24 @@
     <img src="PPA-toplogo-2.png" alt="PPA-toplogo-2">
     <img src="AQT.png" alt="AQT">
   </header>
-
   <h1>Procurement Administrative Fee Calculator</h1>
   <p>For contracts awarded by Lagos State Government</p>
-
   <label>Total Approved Contract Sum (₦)</label>
   <input id="amount" type="number" placeholder="e.g. 100000000">
-
   <button class="primary" onclick="calculate()">Calculate Fees</button>
-
   <div id="result" class="result"></div>
-
   <button class="secondary" onclick="payNow()">Pay Now</button>
 </div>
-
 <script>
 let payable = 0;
 let reference = '';
-
 function calculate() {
   const amt = Number(document.getElementById('amount').value);
   if (!amt) return alert('Enter a valid amount');
-
   const admin = amt * 0.0025;
   const agreement = amt * 0.005;
   payable = admin + agreement;
   reference = 'LSPPA-' + Date.now();
-
   document.getElementById('result').style.display = 'block';
   document.getElementById('result').innerHTML = `
     <strong>Administrative Fee (0.25%)</strong>: ₦${admin.toLocaleString()}<br>
@@ -109,10 +100,8 @@ function calculate() {
     <small>Reference: ${reference}</small>
   `;
 }
-
 async function payNow() {
   if (!payable) return alert('Calculate fees first');
-
   const response = await fetch('https://api.credodemo.com/transaction/initialize', {
     method: 'POST',
     headers: {
@@ -137,5 +126,6 @@ async function payNow() {
 </script>
 </body>
 </html>
+
 
 
