@@ -1068,22 +1068,49 @@
        ====================== -->
   <script>
     window.addEventListener("DOMContentLoaded", () => {
+      /**
+       * ORBIT HALO BALL (pseudo-3D)
+       * - Dots form a sphere-ish "halo" around cursor
+       * - Outer shell is most visible
+       * - Near cursor is more transparent
+       * - Multicolor (HSL palette)
+       * - Fast cursor tracking with smooth transition
+       */
+
       const canvas = document.getElementById("swarm");
-      if (!canvas) {
-        console.warn("Swarm canvas not found. Skipping animation.");
-        return;
-      }
+      if (!canvas) return;
 
       const ctx = canvas.getContext("2d", { alpha: true });
-      if (!ctx) {
-        console.warn("Canvas context not available.");
-        return;
-      }
+      if (!ctx) return;
 
       const DPR = Math.min(2, window.devicePixelRatio || 1);
       let W = 0, H = 0;
 
-      const pointer = { x: 0.5, y: 0.5, vx: 0, vy: 0, active: false };
+      // Cursor target (smoothed)
+      const target = { x: 0, y: 0, active: false };
+      const center = { x: 0, y: 0, vx: 0, vy: 0 };
+
+      // === TUNING (feel free to tweak) ===
+      const DOTS_MIN = 900;
+      const DOTS_MAX = 1700;
+
+      const R_MIN = 28;     // inner radius (near cursor)
+      const R_MAX = 210;    // outer halo radius (ball size)
+
+      const CENTER_SPRING = 0.22; // higher = follows cursor faster
+      const CENTER_DAMP = 0.72;   // lower = snappier (but can jitter)
+
+      const ORBIT_SPEED = 0.012;  // base rotation speed
+      const WOBBLE = 0.18;        // subtle organic movement
+
+      const ALPHA_NEAR = 0.04;    // near cursor transparency
+      const ALPHA_FAR = 0.30;    // outer shell visibility
+
+      const LINE_DIST = 70;       // optional micro bonds
+      const LINE_ALPHA = 0.05;    // keep subtle, 0 to disable
+
+      const BG_FADE = 0.0;        // 0 = no trails, 0.06 = light trails
+
       let dots = [];
       let rafId = null;
 
@@ -1095,112 +1122,228 @@
         canvas.style.width = W + "px";
         canvas.style.height = H + "px";
         ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+        if (!target.active) {
+          target.x = W * 0.5;
+          target.y = H * 0.42;
+        }
+        if (!center.x && !center.y) {
+          center.x = target.x;
+          center.y = target.y;
+        }
       }
 
-      function getDotCount() {
-        const byArea = Math.floor((W * H) / 900);
-        return Math.max(1000, Math.min(2000, byArea));
+      function dotCount() {
+        const byArea = Math.floor((W * H) / 850); // adaptive density
+        return Math.max(DOTS_MIN, Math.min(DOTS_MAX, byArea));
       }
 
+      // Create a "sphere" using spherical coordinates
       function makeDots() {
-        const count = getDotCount();
-        dots = Array.from({ length: count }).map(() => ({
-          x: Math.random() * W,
-          y: Math.random() * H,
-          vx: (Math.random() - 0.5) * 0.25,
-          vy: (Math.random() - 0.5) * 0.25,
-          r: 0.7 + Math.random() * 1.4,
-          a: 0.08 + Math.random() * 0.14,
-          tint: Math.random() < 0.55 ? "blue" : "green"
-        }));
+        const n = dotCount();
+        const paletteBase = 200 + Math.random() * 70; // teal/blue/purple bias
+
+        dots = Array.from({ length: n }).map((_, i) => {
+          // radius distribution: more dots near outer shell for a "ball" look
+          const u = Math.random();
+          const shellBias = Math.pow(u, 0.35); // pushes towards 1 (outer)
+          const r = R_MIN + shellBias * (R_MAX - R_MIN);
+
+          // spherical angles
+          const theta = Math.random() * Math.PI * 2; // around
+          const phi = Math.acos(2 * Math.random() - 1); // up/down distribution
+
+          // pseudo depth (z) from sphere
+          const z = Math.cos(phi); // -1..1
+
+          // multicolor hue + slight variance
+          const hue = (paletteBase + (i * 360 / n) + (Math.random() * 24 - 12)) % 360;
+          const sat = 78 + Math.random() * 10;
+          const light = 56 + (z * 10); // slightly brighter at "front"
+
+          return {
+            // sphere coordinates (unit)
+            theta,
+            phi,
+            r,
+            z,
+            // orbit velocity per dot
+            s: ORBIT_SPEED * (0.65 + Math.random() * 1.1),
+            wob: (Math.random() * 2 - 1) * WOBBLE,
+            // size based on depth (front bigger)
+            baseSize: 0.8 + Math.random() * 1.4,
+            // color
+            hue, sat, light,
+          };
+        });
       }
 
       function onMove(e) {
         const rect = canvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / rect.width;
-        const y = (e.clientY - rect.top) / rect.height;
-
-        const nx = x * W;
-        const ny = y * H;
-
-        pointer.vx = (nx - pointer.x) * 0.06;
-        pointer.vy = (ny - pointer.y) * 0.06;
-        pointer.x = nx;
-        pointer.y = ny;
-        pointer.active = true;
+        target.x = ((e.clientX - rect.left) / rect.width) * W;
+        target.y = ((e.clientY - rect.top) / rect.height) * H;
+        target.active = true;
       }
 
-      function onLeave() { pointer.active = false; }
+      function onLeave() {
+        target.active = false;
+      }
 
-      function tick() {
-        ctx.clearRect(0, 0, W, H);
+      function hsl(h, s, l, a) {
+        return `hsla(${h} ${s}% ${l}% / ${a})`;
+      }
 
-        const tx = pointer.active ? pointer.x : W * 0.5;
-        const ty = pointer.active ? pointer.y : H * 0.5;
+      function tick(tms) {
+        const t = tms * 0.001;
+
+        // Optional trails (set BG_FADE to ~0.05)
+        if (BG_FADE > 0) {
+          ctx.fillStyle = `rgba(246,248,251,${BG_FADE})`;
+          ctx.fillRect(0, 0, W, H);
+        } else {
+          ctx.clearRect(0, 0, W, H);
+        }
+
+        // Smooth-follow center (spring physics)
+        const dx = target.x - center.x;
+        const dy = target.y - center.y;
+        center.vx = (center.vx + dx * CENTER_SPRING) * CENTER_DAMP;
+        center.vy = (center.vy + dy * CENTER_SPRING) * CENTER_DAMP;
+        center.x += center.vx;
+        center.y += center.vy;
+
+        // Precompute projected dots
+        // pseudo 3D projection: x,y with "z" affecting size & alpha
+        const projected = new Array(dots.length);
 
         for (let i = 0; i < dots.length; i++) {
           const d = dots[i];
-          const dx = tx - d.x;
-          const dy = ty - d.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
-          const pull = pointer.active ? Math.min(1, 160 / dist) : 0.05;
+          // rotate around y-axis-ish by moving theta
+          d.theta += d.s * (0.9 + 0.25 * Math.sin(t * 0.7));
+          const wob = Math.sin(t * 1.2 + d.theta) * d.wob;
 
-          d.vx += (dx / dist) * 0.0085 * pull + pointer.vx * 0.00025;
-          d.vy += (dy / dist) * 0.0085 * pull + pointer.vy * 0.00025;
+          // sphere unit coords
+          const sx = Math.sin(d.phi) * Math.cos(d.theta);
+          const sy = Math.cos(d.phi);
+          const sz = Math.sin(d.phi) * Math.sin(d.theta);
 
-          d.vx *= 0.987;
-          d.vy *= 0.987;
+          // pseudo depth (front/back)
+          const z = sz; // -1..1
+          d.z = z;
 
-          const sp = Math.sqrt(d.vx * d.vx + d.vy * d.vy);
-          const max = 0.95;
-          if (sp > max) {
-            d.vx = (d.vx / sp) * max;
-            d.vy = (d.vy / sp) * max;
+          // project radius with slight breathing
+          const rr = d.r + wob * 10;
+
+          // place around center (ball follows cursor)
+          let x = center.x + sx * rr;
+          let y = center.y + sy * rr * 0.92;
+
+          // Alpha rule you requested:
+          // farther from cursor center => more visible
+          const dist = Math.sqrt((x - center.x) ** 2 + (y - center.y) ** 2);
+          const k = Math.min(1, Math.max(0, (dist - R_MIN) / (R_MAX - R_MIN)));
+          // k=0 near center -> transparent, k=1 outer shell -> visible
+          let a = ALPHA_NEAR + k * (ALPHA_FAR - ALPHA_NEAR);
+
+          // Add depth shaping: front slightly stronger, back slightly dimmer
+          const frontBoost = 0.55 + (z + 1) * 0.25; // ~0.55..1.05
+          a *= frontBoost;
+
+          // size: outer shell slightly smaller, front slightly bigger
+          const size = d.baseSize * (0.85 + k * 0.45) * (0.75 + (z + 1) * 0.22);
+
+          projected[i] = { x, y, z, a, size, d };
+        }
+
+        // Draw back-to-front for 3D feel
+        projected.sort((A, B) => A.z - B.z);
+
+        // (Optional) subtle micro-bonds near outer ring only
+        // Keep cheap by sampling a few neighbors
+        if (LINE_ALPHA > 0) {
+          ctx.lineWidth = 1;
+          for (let i = 0; i < projected.length; i += 3) {
+            const p = projected[i];
+            if (!p) continue;
+
+            // only bond when closer to outer shell (k high => alpha higher)
+            if (p.a < 0.12) continue;
+
+            for (let j = i + 1; j < i + 14 && j < projected.length; j += 2) {
+              const q = projected[j];
+              const dx = q.x - p.x;
+              const dy = q.y - p.y;
+              const dd = dx * dx + dy * dy;
+
+              if (dd < LINE_DIST * LINE_DIST) {
+                const tlink = 1 - (dd / (LINE_DIST * LINE_DIST));
+                const la = LINE_ALPHA * tlink * Math.min(p.a, q.a);
+                if (la <= 0.002) continue;
+
+                ctx.beginPath();
+                ctx.strokeStyle = hsl(p.d.hue, 78, 58, la);
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(q.x, q.y);
+                ctx.stroke();
+              }
+            }
           }
+        }
 
-          d.x += d.vx;
-          d.y += d.vy;
+        // Draw dots
+        for (let i = 0; i < projected.length; i++) {
+          const p = projected[i];
+          const d = p.d;
 
-          if (d.x < -30) d.x = W + 30;
-          if (d.x > W + 30) d.x = -30;
-          if (d.y < -30) d.y = H + 30;
-          if (d.y > H + 30) d.y = -30;
+          // color: multi, keep vivid. Lightness nudged by depth
+          const col = hsl(d.hue, d.sat, d.light + (p.z * 8), p.a);
 
           ctx.beginPath();
-          ctx.fillStyle = d.tint === "blue"
-            ? `rgba(11,77,162,${d.a})`
-            : `rgba(0,135,83,${d.a})`;
-          ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+          ctx.fillStyle = col;
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
           ctx.fill();
         }
 
         rafId = requestAnimationFrame(tick);
       }
 
-      function initSwarm() {
+      function init() {
         resize();
         makeDots();
         if (rafId) cancelAnimationFrame(rafId);
-        tick();
+        requestAnimationFrame(tick);
       }
 
       const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
       if (!reduceMotion) {
-        initSwarm();
+        init();
         window.addEventListener("resize", () => { resize(); makeDots(); }, { passive: true });
         window.addEventListener("pointermove", onMove, { passive: true });
         window.addEventListener("pointerleave", onLeave, { passive: true });
+        // initial position when no mouse movement yet
+        window.addEventListener("mousemove", onMove, { once: true, passive: true });
       } else {
+        // static fallback
         resize();
         makeDots();
         ctx.clearRect(0, 0, W, H);
-        dots.forEach(d => {
+        const cx = W * 0.5, cy = H * 0.42;
+        for (const d of dots) {
+          const sx = Math.sin(d.phi) * Math.cos(d.theta);
+          const sy = Math.cos(d.phi);
+          const rr = d.r;
+          const x = cx + sx * rr;
+          const y = cy + sy * rr * 0.92;
+          const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+          const k = Math.min(1, Math.max(0, (dist - R_MIN) / (R_MAX - R_MIN)));
+          const a = ALPHA_NEAR + k * (ALPHA_FAR - ALPHA_NEAR);
           ctx.beginPath();
-          ctx.fillStyle = d.tint === "blue" ? "rgba(11,77,162,0.14)" : "rgba(0,135,83,0.10)";
-          ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+          ctx.fillStyle = `hsla(${d.hue} ${d.sat}% ${d.light}% / ${a})`;
+          ctx.arc(x, y, d.baseSize, 0, Math.PI * 2);
           ctx.fill();
-        });
+        }
         window.addEventListener("resize", () => { resize(); makeDots(); }, { passive: true });
       }
     });
