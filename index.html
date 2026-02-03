@@ -1,131 +1,149 @@
-<!-- UPDATED VERSION WITH CREDO PAYMENT INITIALIZATION (SANDBOX) -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LSPPA Procurement Fee Calculator</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --lsppa-blue: #0B4DA2;
-      --lagos-green: #008753;
-      --bg: #F5F7FA;
-    }
-    body {
-      font-family: 'Inter', sans-serif;
-      background: var(--bg);
-      margin: 0;
-      padding: 40px;
-    }
-    .container {
-      max-width: 720px;
-      margin: auto;
-      background: #fff;
-      border-radius: 16px;
-      padding: 32px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-    }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-    }
-    header img { height: 56px; }
-    h1 {
-      font-size: 22px;
-      color: var(--lsppa-blue);
-      margin-bottom: 8px;
-    }
-    label { font-weight: 600; }
-    input {
-      width: 100%;
-      padding: 14px;
-      font-size: 16px;
-      margin: 10px 0 20px;
-      border-radius: 10px;
-      border: 1px solid #ccc;
-    }
-    button {
-      width: 100%;
-      padding: 14px;
-      border-radius: 10px;
-      border: none;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .primary { background: var(--lsppa-blue); color: #fff; }
-    .secondary { background: var(--lagos-green); color: #fff; margin-top: 12px; }
-    .result {
-      margin-top: 24px;
-      background: #F0F4FF;
-      padding: 20px;
-      border-radius: 12px;
-      display: none;
-    }
-  </style>
-</head>
-<body>
-<div class="container">
-  <header>
-    <img src="Lagos-Logo.png" alt="Lagos Logo">
-    <img src="PPA-toplogo-2.png" alt="PPA-toplogo-2">
-    <img src="AQT.png" alt="AQT">
-  </header>
-  <h1>Procurement Administrative Fee Calculator</h1>
-  <p>For contracts awarded by Lagos State Government</p>
-  <label>Total Approved Contract Sum (₦)</label>
-  <input id="amount" type="number" placeholder="e.g. 100000000">
-  <button class="primary" onclick="calculate()">Calculate Fees</button>
-  <div id="result" class="result"></div>
-  <button class="secondary" onclick="payNow()">Pay Now</button>
-</div>
 <script>
-let payable = 0;
-let reference = '';
-function calculate() {
-  const amt = Number(document.getElementById('amount').value);
-  if (!amt) return alert('Enter a valid amount');
-  const admin = amt * 0.0025;
-  const agreement = amt * 0.005;
-  payable = admin + agreement;
-  reference = 'LSPPA-' + Date.now();
-  document.getElementById('result').style.display = 'block';
-  document.getElementById('result').innerHTML = `
-    <strong>Administrative Fee (0.25%)</strong>: ₦${admin.toLocaleString()}<br>
-    <strong>Agreement Fee (0.50%)</strong>: ₦${agreement.toLocaleString()}<br><br>
-    <strong>Total Payable</strong>: ₦${payable.toLocaleString()}<br>
-    <small>Reference: ${reference}</small>
-  `;
-}
-async function payNow() {
-  if (!payable) return alert('Calculate fees first');
-  const response = await fetch('https://api.credodemo.com/transaction/initialize', {
-    method: 'POST',
-    headers: {
-      'Authorization': '0PUB1474aGHEADMdio6t169E9S1qtzaW',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      amount: Math.round(payable * 100),
-      email: 'contractor@example.com',
-      currency: 'NGN',
-      reference: reference,
-      callbackUrl: 'https://yourdomain.com/payment-callback'
-    })
-  });
-  const data = await response.json();
-  if (data.status === 200) {
-    window.location.href = data.data.authorizationUrl;
-  } else {
-    alert('Payment initialization failed');
+  /* =========================
+     HERO DOT SWARM (CANVAS)
+     - 1000–2000 dots
+     - cursor attractor
+     - NO O(n^2) connecting lines (performance)
+     ========================= */
+  const canvas = document.getElementById("swarm");
+  const ctx = canvas.getContext("2d", { alpha: true });
+
+  const DPR = Math.min(2, window.devicePixelRatio || 1);
+  let W = 0, H = 0;
+
+  const pointer = { x: 0.5, y: 0.5, vx: 0, vy: 0, active: false };
+  let dots = [];
+  let rafId = null;
+
+  // Clamp count between 1000 and 2000, but scale with viewport area
+  function getDotCount() {
+    // tweak divisor to taste: smaller = more dots on same screen
+    const byArea = Math.floor((W * H) / 900);
+    return Math.max(1000, Math.min(2000, byArea));
   }
-}
+
+  function resize() {
+    W = canvas.clientWidth || window.innerWidth;
+    H = canvas.clientHeight || (window.innerHeight - 72);
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  function makeDots() {
+    const count = getDotCount();
+    dots = Array.from({ length: count }).map(() => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: (Math.random() - 0.5) * 0.25,
+      // slightly smaller dots for dense field
+      r: 0.7 + Math.random() * 1.4,
+      // lower alpha so 2000 doesn’t turn into a fog
+      a: 0.08 + Math.random() * 0.14,
+      tint: Math.random() < 0.55 ? "blue" : "green"
+    }));
+  }
+
+  function onMove(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+
+    const nx = x * W;
+    const ny = y * H;
+
+    pointer.vx = (nx - pointer.x) * 0.06;
+    pointer.vy = (ny - pointer.y) * 0.06;
+    pointer.x = nx;
+    pointer.y = ny;
+    pointer.active = true;
+  }
+
+  function onLeave() {
+    pointer.active = false;
+  }
+
+  function tick() {
+    ctx.clearRect(0, 0, W, H);
+
+    const tx = pointer.active ? pointer.x : W * 0.5;
+    const ty = pointer.active ? pointer.y : H * 0.5;
+
+    for (let i = 0; i < dots.length; i++) {
+      const d = dots[i];
+
+      const dx = tx - d.x;
+      const dy = ty - d.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+      // attract strength (slightly softer for huge counts)
+      const pull = pointer.active ? Math.min(1, 160 / dist) : 0.05;
+
+      d.vx += (dx / dist) * 0.0085 * pull + pointer.vx * 0.00025;
+      d.vy += (dy / dist) * 0.0085 * pull + pointer.vy * 0.00025;
+
+      // friction
+      d.vx *= 0.987;
+      d.vy *= 0.987;
+
+      // limit speed
+      const sp = Math.sqrt(d.vx * d.vx + d.vy * d.vy);
+      const max = 0.95;
+      if (sp > max) {
+        d.vx = (d.vx / sp) * max;
+        d.vy = (d.vy / sp) * max;
+      }
+
+      // integrate
+      d.x += d.vx;
+      d.y += d.vy;
+
+      // wrap bounds
+      if (d.x < -30) d.x = W + 30;
+      if (d.x > W + 30) d.x = -30;
+      if (d.y < -30) d.y = H + 30;
+      if (d.y > H + 30) d.y = -30;
+
+      const c = d.tint === "blue"
+        ? `rgba(11,77,162,${d.a})`
+        : `rgba(0,135,83,${d.a})`;
+
+      ctx.beginPath();
+      ctx.fillStyle = c;
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function initSwarm() {
+    resize();
+    makeDots();
+    if (rafId) cancelAnimationFrame(rafId);
+    tick();
+  }
+
+  // reduced motion: keep static dots (no animation)
+  const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduceMotion) {
+    initSwarm();
+    window.addEventListener("resize", () => { resize(); makeDots(); }, { passive: true });
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("pointerleave", onLeave, { passive: true });
+  } else {
+    resize();
+    makeDots();
+    ctx.clearRect(0, 0, W, H);
+    dots.forEach(d => {
+      ctx.beginPath();
+      ctx.fillStyle = d.tint === "blue" ? "rgba(11,77,162,0.14)" : "rgba(0,135,83,0.10)";
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    window.addEventListener("resize", () => { resize(); makeDots(); }, { passive: true });
+  }
 </script>
-</body>
-</html>
-
-
-
