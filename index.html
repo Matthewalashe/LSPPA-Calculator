@@ -1,149 +1,1251 @@
-<script>
-  /* =========================
-     HERO DOT SWARM (CANVAS)
-     - 1000–2000 dots
-     - cursor attractor
-     - NO O(n^2) connecting lines (performance)
-     ========================= */
-  const canvas = document.getElementById("swarm");
-  const ctx = canvas.getContext("2d", { alpha: true });
+<!DOCTYPE html>
+<html lang="en">
 
-  const DPR = Math.min(2, window.devicePixelRatio || 1);
-  let W = 0, H = 0;
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LSPPA Procurement Fee Calculator</title>
 
-  const pointer = { x: 0.5, y: 0.5, vx: 0, vy: 0, active: false };
-  let dots = [];
-  let rafId = null;
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 
-  // Clamp count between 1000 and 2000, but scale with viewport area
-  function getDotCount() {
-    // tweak divisor to taste: smaller = more dots on same screen
-    const byArea = Math.floor((W * H) / 900);
-    return Math.max(1000, Math.min(2000, byArea));
-  }
+  <style>
+    :root {
+      --blue: #0B4DA2;
+      --green: #008753;
 
-  function resize() {
-    W = canvas.clientWidth || window.innerWidth;
-    H = canvas.clientHeight || (window.innerHeight - 72);
-    canvas.width = Math.floor(W * DPR);
-    canvas.height = Math.floor(H * DPR);
-    canvas.style.width = W + "px";
-    canvas.style.height = H + "px";
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  }
+      --bg: #F6F8FB;
+      --ink: #0b1220;
+      --muted: #667085;
+      --danger: #ef4444;
 
-  function makeDots() {
-    const count = getDotCount();
-    dots = Array.from({ length: count }).map(() => ({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      vx: (Math.random() - 0.5) * 0.25,
-      vy: (Math.random() - 0.5) * 0.25,
-      // slightly smaller dots for dense field
-      r: 0.7 + Math.random() * 1.4,
-      // lower alpha so 2000 doesn’t turn into a fog
-      a: 0.08 + Math.random() * 0.14,
-      tint: Math.random() < 0.55 ? "blue" : "green"
-    }));
-  }
+      --border: rgba(2, 6, 23, 0.10);
+      --shadow: 0 18px 55px rgba(2, 6, 23, 0.10);
 
-  function onMove(e) {
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
+      --glow-blue: 0 0 0 3px rgba(11, 77, 162, 0.10), 0 10px 28px rgba(11, 77, 162, 0.10);
+      --glow-green: 0 0 0 3px rgba(0, 135, 83, 0.10), 0 10px 28px rgba(0, 135, 83, 0.10);
+      --glow-neutral: 0 0 0 3px rgba(2, 6, 23, 0.06), 0 10px 28px rgba(2, 6, 23, 0.10);
 
-    const nx = x * W;
-    const ny = y * H;
-
-    pointer.vx = (nx - pointer.x) * 0.06;
-    pointer.vy = (ny - pointer.y) * 0.06;
-    pointer.x = nx;
-    pointer.y = ny;
-    pointer.active = true;
-  }
-
-  function onLeave() {
-    pointer.active = false;
-  }
-
-  function tick() {
-    ctx.clearRect(0, 0, W, H);
-
-    const tx = pointer.active ? pointer.x : W * 0.5;
-    const ty = pointer.active ? pointer.y : H * 0.5;
-
-    for (let i = 0; i < dots.length; i++) {
-      const d = dots[i];
-
-      const dx = tx - d.x;
-      const dy = ty - d.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-
-      // attract strength (slightly softer for huge counts)
-      const pull = pointer.active ? Math.min(1, 160 / dist) : 0.05;
-
-      d.vx += (dx / dist) * 0.0085 * pull + pointer.vx * 0.00025;
-      d.vy += (dy / dist) * 0.0085 * pull + pointer.vy * 0.00025;
-
-      // friction
-      d.vx *= 0.987;
-      d.vy *= 0.987;
-
-      // limit speed
-      const sp = Math.sqrt(d.vx * d.vx + d.vy * d.vy);
-      const max = 0.95;
-      if (sp > max) {
-        d.vx = (d.vx / sp) * max;
-        d.vy = (d.vy / sp) * max;
-      }
-
-      // integrate
-      d.x += d.vx;
-      d.y += d.vy;
-
-      // wrap bounds
-      if (d.x < -30) d.x = W + 30;
-      if (d.x > W + 30) d.x = -30;
-      if (d.y < -30) d.y = H + 30;
-      if (d.y > H + 30) d.y = -30;
-
-      const c = d.tint === "blue"
-        ? `rgba(11,77,162,${d.a})`
-        : `rgba(0,135,83,${d.a})`;
-
-      ctx.beginPath();
-      ctx.fillStyle = c;
-      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
-      ctx.fill();
+      --focus: 0 0 0 4px rgba(11, 77, 162, 0.12);
     }
 
-    rafId = requestAnimationFrame(tick);
-  }
+    * {
+      box-sizing: border-box;
+    }
 
-  function initSwarm() {
-    resize();
-    makeDots();
-    if (rafId) cancelAnimationFrame(rafId);
-    tick();
-  }
+    html,
+    body {
+      height: 100%;
+    }
 
-  // reduced motion: keep static dots (no animation)
-  const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!reduceMotion) {
-    initSwarm();
-    window.addEventListener("resize", () => { resize(); makeDots(); }, { passive: true });
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerleave", onLeave, { passive: true });
-  } else {
-    resize();
-    makeDots();
-    ctx.clearRect(0, 0, W, H);
-    dots.forEach(d => {
-      ctx.beginPath();
-      ctx.fillStyle = d.tint === "blue" ? "rgba(11,77,162,0.14)" : "rgba(0,135,83,0.10)";
-      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
-      ctx.fill();
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      overflow-x: hidden;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* Subtle blur glow blobs behind everything */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: -40px;
+      pointer-events: none;
+      z-index: -3;
+      background:
+        radial-gradient(900px 520px at 18% 12%, rgba(11, 77, 162, 0.18), transparent 62%),
+        radial-gradient(900px 520px at 82% 14%, rgba(0, 135, 83, 0.14), transparent 62%),
+        radial-gradient(1000px 680px at 50% 92%, rgba(11, 77, 162, 0.10), transparent 62%);
+      filter: blur(18px);
+      opacity: .9;
+    }
+
+    .container {
+      width: min(1200px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    /* NAV — transparent on hero */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: transparent;
+      border-bottom: 1px solid transparent;
+      transition: background .18s ease, border-color .18s ease, backdrop-filter .18s ease;
+    }
+
+    .nav.is-scrolled {
+      background: rgba(246, 248, 251, 0.74);
+      backdrop-filter: blur(10px);
+      border-bottom-color: rgba(2, 6, 23, 0.08);
+    }
+
+    .nav-inner {
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .logos {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .logos img {
+      height: 40px;
+      width: auto;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 22px rgba(2, 6, 23, 0.06));
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(2, 6, 23, 0.10);
+      background: rgba(255, 255, 255, 0.64);
+      backdrop-filter: blur(10px);
+      font-weight: 800;
+      font-size: 13px;
+      color: var(--ink);
+      cursor: pointer;
+      user-select: none;
+      transition: box-shadow .16s ease, transform .05s ease, background .16s ease;
+    }
+
+    .chip:hover {
+      box-shadow: var(--glow-neutral);
+      background: rgba(255, 255, 255, 0.74);
+    }
+
+    .chip:active {
+      transform: translateY(1px);
+    }
+
+    /* HERO */
+    .hero {
+      position: relative;
+      min-height: calc(100vh - 72px);
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: -120px;
+      z-index: -2;
+      background:
+        radial-gradient(900px 520px at 18% 30%, rgba(11, 77, 162, 0.30), transparent 58%),
+        radial-gradient(800px 520px at 78% 22%, rgba(0, 135, 83, 0.22), transparent 56%),
+        radial-gradient(900px 560px at 55% 80%, rgba(11, 77, 162, 0.18), transparent 60%),
+        conic-gradient(from 210deg at 50% 50%,
+          rgba(11, 77, 162, 0.18),
+          rgba(0, 135, 83, 0.14),
+          rgba(11, 77, 162, 0.18));
+      filter: blur(14px);
+      opacity: 0.95;
+      animation: drift 18s ease-in-out infinite alternate;
+    }
+
+    @keyframes drift {
+      0% {
+        transform: translate3d(-10px, -6px, 0) scale(1.02) rotate(0deg);
+      }
+
+      50% {
+        transform: translate3d(18px, 10px, 0) scale(1.03) rotate(6deg);
+      }
+
+      100% {
+        transform: translate3d(-6px, 14px, 0) scale(1.04) rotate(-4deg);
+      }
+    }
+
+    /* dot swarm canvas */
+    #swarm {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      width: 100%;
+      height: 100%;
+      display: block;
+      opacity: 0.85;
+      pointer-events: none;
+    }
+
+    /* subtle noise */
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      z-index: -1;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='420' height='420' filter='url(%23n)' opacity='.08'/%3E%3C/svg%3E");
+      background-size: 420px 420px;
+      mix-blend-mode: overlay;
+      pointer-events: none;
+      opacity: 0.45;
+    }
+
+    .hero-inner {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      padding: 40px 0;
+    }
+
+    .hero-title {
+      margin: 0 0 10px;
+      font-size: clamp(30px, 4.8vw, 52px);
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+      text-shadow: 0 10px 45px rgba(2, 6, 23, 0.10);
+    }
+
+    .hero-sub {
+      margin: 0 auto 18px;
+      color: rgba(14, 20, 36, 0.72);
+      font-size: 15px;
+      line-height: 1.55;
+      max-width: 56ch;
+      text-shadow: 0 10px 45px rgba(2, 6, 23, 0.06);
+      font-weight: 700;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      font-weight: 900;
+      font-size: 15px;
+      transition: box-shadow .16s ease, transform .05s ease, background .16s ease, border-color .16s ease;
+      user-select: none;
+      text-decoration: none;
+      background: rgba(255, 255, 255, 0.74);
+      backdrop-filter: blur(10px);
+      color: var(--ink);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+      border-color: rgba(11, 77, 162, 0.22);
+      backdrop-filter: none;
+    }
+
+    .btn-primary:hover {
+      box-shadow: var(--glow-blue);
+    }
+
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.72);
+      border-color: rgba(2, 6, 23, 0.10);
+      color: var(--ink);
+    }
+
+    .btn-ghost:hover {
+      box-shadow: var(--glow-neutral);
+    }
+
+    /* SECTION */
+    section {
+      padding: 42px 0;
+    }
+
+    .calc-wrap {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    @media (max-width: 980px) {
+      .calc-wrap {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.90);
+      border: 1px solid rgba(2, 6, 23, 0.10);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-head {
+      padding: 18px 20px;
+      border-bottom: 1px solid rgba(2, 6, 23, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 1));
+    }
+
+    .head-title {
+      font-weight: 1000;
+      letter-spacing: -0.02em;
+    }
+
+    /* IMPORTANT: make the body a flex column so we can pin buttons */
+    .card-body {
+      padding: 18px 20px 20px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .push-bottom {
+      margin-top: auto;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 900;
+      margin: 12px 0 6px;
+      color: rgba(2, 6, 23, 0.86);
+    }
+
+    input {
+      width: 100%;
+      padding: 14px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(2, 6, 23, 0.10);
+      background: rgba(255, 255, 255, 0.92);
+      font-size: 16px;
+      outline: none;
+      transition: box-shadow .16s ease, border-color .16s ease;
+    }
+
+    input:focus {
+      border-color: rgba(11, 77, 162, 0.34);
+      box-shadow: var(--focus);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    @media (max-width: 520px) {
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .error {
+      display: none;
+      margin-top: 10px;
+      color: var(--danger);
+      font-weight: 900;
+      font-size: 13px;
+    }
+
+    .btn-full {
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      font-weight: 1000;
+      font-size: 15px;
+      transition: box-shadow .16s ease, transform .05s ease, background .16s ease, border-color .16s ease;
+      background: rgba(255, 255, 255, 0.85);
+      color: var(--ink);
+    }
+
+    .btn-full:active {
+      transform: translateY(1px);
+    }
+
+    .btn-full[disabled] {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .btn-calc {
+      background: var(--blue);
+      color: #fff;
+      border-color: rgba(11, 77, 162, 0.22);
+    }
+
+    .btn-calc:hover {
+      box-shadow: var(--glow-blue);
+    }
+
+    .btn-pay {
+      background: var(--green);
+      color: #fff;
+      border-color: rgba(0, 135, 83, 0.22);
+    }
+
+    .btn-pay:hover {
+      box-shadow: var(--glow-green);
+    }
+
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.86);
+      border-color: rgba(2, 6, 23, 0.10);
+      color: var(--ink);
+    }
+
+    .btn-outline:hover {
+      box-shadow: var(--glow-neutral);
+    }
+
+    .kv {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 20px;
+      border-bottom: 1px solid rgba(2, 6, 23, 0.06);
+      font-size: 14px;
+    }
+
+    .kv span:last-child {
+      font-weight: 1000;
+    }
+
+    .total {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 20px;
+      font-weight: 1000;
+      font-size: 15px;
+    }
+
+    .ref-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 20px 0;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: none;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(11, 77, 162, 0.18);
+      background: rgba(11, 77, 162, 0.06);
+      color: var(--blue);
+      font-weight: 1000;
+      font-size: 12px;
+      width: fit-content;
+    }
+
+    .copy-btn {
+      display: none;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(2, 6, 23, 0.10);
+      background: rgba(255, 255, 255, 0.88);
+      font-weight: 900;
+      font-size: 12px;
+      cursor: pointer;
+      transition: box-shadow .16s ease, transform .05s ease, background .16s ease;
+    }
+
+    .copy-btn:hover {
+      box-shadow: var(--glow-neutral);
+    }
+
+    .copy-btn:active {
+      transform: translateY(1px);
+    }
+
+    .divider {
+      height: 1px;
+      background: rgba(2, 6, 23, 0.08);
+      margin: 12px 20px;
+    }
+
+    .codebox {
+      display: none;
+      margin-top: 12px;
+      background: #0b1020;
+      color: #e2e8f0;
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 12px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    /* MODAL — footer pinned */
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.50);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      z-index: 9999;
+    }
+
+    .modal {
+      width: 100%;
+      max-width: 700px;
+      height: min(72vh, 620px);
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 30px 120px rgba(2, 6, 23, 0.25);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-head {
+      padding: 16px 18px;
+      border-bottom: 1px solid rgba(2, 6, 23, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 1));
+      flex: 0 0 auto;
+    }
+
+    .modal-title {
+      font-weight: 1000;
+      letter-spacing: -0.02em;
+    }
+
+    .close {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 18px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      transition: box-shadow .16s ease, background .16s ease;
+    }
+
+    .close:hover {
+      background: rgba(2, 6, 23, 0.04);
+      box-shadow: var(--glow-neutral);
+    }
+
+    .modal-content {
+      padding: 16px 18px 0;
+      overflow: auto;
+      flex: 1 1 auto;
+    }
+
+    .modal-footer {
+      padding: 14px 18px 16px;
+      border-top: 1px solid rgba(2, 6, 23, 0.08);
+      background: rgba(255, 255, 255, 0.92);
+      flex: 0 0 auto;
+    }
+
+    .mini-card {
+      border: 1px solid rgba(2, 6, 23, 0.10);
+      border-radius: 16px;
+      padding: 14px;
+      background: rgba(246, 248, 251, 0.60);
+      margin-bottom: 14px;
+    }
+
+    .mini-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 0;
+      font-size: 13px;
+    }
+
+    .mini-total {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(2, 6, 23, 0.10);
+      display: flex;
+      justify-content: space-between;
+      font-weight: 1000;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    @media (max-width: 560px) {
+      .actions {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translateX(-50%);
+      background: rgba(11, 16, 32, 0.92);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      padding: 12px 14px;
+      border-radius: 999px;
+      box-shadow: 0 16px 50px rgba(2, 6, 23, 0.25);
+      font-weight: 900;
+      font-size: 13px;
+      display: none;
+      z-index: 99999;
+    }
+
+    footer {
+      padding: 26px 0 38px;
+      border-top: 1px solid rgba(2, 6, 23, 0.08);
+      background: rgba(255, 255, 255, 0.55);
+      backdrop-filter: blur(8px);
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- NAVBAR -->
+  <div class="nav" id="nav">
+    <div class="container">
+      <div class="nav-inner">
+        <div class="logos">
+          <img src="Lagos-logo.png" alt="Lagos State Logo">
+          <img src="PPA-toplogo-2.png" alt="LSPPA Logo">
+          <img src="AQT.png" alt="AQTech Logo">
+        </div>
+
+        <div class="nav-actions">
+          <div class="chip" onclick="document.getElementById('calculator').scrollIntoView({behavior:'smooth'});">
+            Calculator
+          </div>
+          <div class="chip" onclick="resetAll()">
+            Reset
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <header class="hero">
+    <canvas id="swarm" aria-hidden="true"></canvas>
+
+    <div class="container">
+      <div class="hero-inner">
+        <h1 class="hero-title">Procurement Fee Calculator</h1>
+        <p class="hero-sub">Calculate → Confirm → Enter Payer ID → Pay</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#calculator"
+            onclick="setTimeout(()=>document.getElementById('amount').focus(), 250)">
+            Start
+          </a>
+          <button class="btn btn-ghost" onclick="openPreviewModal()">Payment Step</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- CALCULATOR -->
+  <section id="calculator">
+    <div class="container">
+      <div class="calc-wrap">
+        <!-- Inputs -->
+        <div class="card">
+          <div class="card-head">
+            <div class="head-title">Calculator</div>
+          </div>
+
+          <div class="card-body">
+            <div>
+              <label for="amount">Contract Sum (₦)</label>
+              <input id="amount" type="number" inputmode="numeric" placeholder="e.g. 100000000" />
+            </div>
+
+            <div id="debug" class="codebox"></div>
+
+            <!-- forced to bottom -->
+            <div class="push-bottom">
+              <button id="calcBtn" class="btn-full btn-calc" onclick="calculate()">Calculate</button>
+              <div id="mainError" class="error"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="card">
+          <div class="card-head">
+            <div class="head-title">Summary</div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; height:100%; padding: 18px 0 0;">
+            <div>
+              <div class="kv"><span>Administrative (0.25%)</span><span id="sAdmin">—</span></div>
+              <div class="kv"><span>Agreement (0.50%)</span><span id="sAgreement">—</span></div>
+              <div class="total"><span>Total</span><span id="sTotal">—</span></div>
+
+              <div class="ref-row">
+                <div class="badge" id="refBadge">Reference: —</div>
+                <button class="copy-btn" id="copyRefBtn" onclick="copyReference()">Copy Reference</button>
+              </div>
+
+              <div class="divider"></div>
+            </div>
+
+            <div style="padding: 0 20px 20px; margin-top:auto;">
+              <button id="payBtn" class="btn-full btn-pay" onclick="openModal()" disabled>Proceed to Payment</button>
+              <button class="btn-full btn-outline" onclick="resetAll()" style="margin-top:10px;">Reset</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PAYMENT MODAL -->
+  <div id="backdrop" class="backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-head">
+        <div class="modal-title" id="modalTitle">Payment</div>
+        <button class="close" onclick="closeModal()" aria-label="Close">✕</button>
+      </div>
+
+      <div class="modal-content">
+        <div class="mini-card">
+          <div class="mini-row"><span>Contract</span><span id="mContract"><b>—</b></span></div>
+          <div class="mini-row"><span>Admin</span><span id="mAdmin"><b>—</b></span></div>
+          <div class="mini-row"><span>Agreement</span><span id="mAgreement"><b>—</b></span></div>
+          <div class="mini-total"><span>Total</span><span id="mTotal">—</span></div>
+          <div style="margin-top:10px;font-size:13px;color:var(--muted);">
+            Ref: <b id="mRef">—</b>
+          </div>
+        </div>
+
+        <label for="payerId">Payer ID</label>
+        <input id="payerId" type="text" placeholder="e.g. PPA-1234567890" oninput="autofillFromPayerId()" />
+
+        <div class="grid-2" style="margin-top: 10px;">
+          <div>
+            <label for="contractorEmail">Email</label>
+            <input id="contractorEmail" type="email" placeholder="auto-filled" />
+          </div>
+          <div>
+            <label for="contractorOrg">Organization</label>
+            <input id="contractorOrg" type="text" placeholder="auto-filled" />
+          </div>
+        </div>
+
+        <div id="modalError" class="error"></div>
+        <div id="modalDebug" class="codebox"></div>
+        <div style="height: 10px;"></div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="actions">
+          <button class="btn-full btn-outline" onclick="closeModal()">Cancel</button>
+          <button id="continueBtn" class="btn-full btn-pay" onclick="verifyThenPay()">Continue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast" class="toast">Copied!</div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="container">
+      <div class="footer-inner">
+        <div>© <span id="year"></span> LSPPA</div>
+        <div>AQTech</div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /**
+     * CONFIG
+     * NOTE: GitHub Pages is static. Credo init from the browser may fail due to CORS / auth rules.
+     * Keep as-is for UI demo; for production use a backend.
+     */
+    const CREDO_BASE_URL = "https://api.credodemo.com";
+    const CREDO_PUBLIC_KEY = "REPLACE_WITH_YOUR_PUBLIC_KEY";
+    const CALLBACK_URL = "https://yourdomain.com/payment-callback";
+    const PAYER_VERIFY_URL = ""; // optional
+
+    /**
+     * STATE
+     */
+    let lastAmount = 0;
+    let breakdown = { admin: 0, agreement: 0 };
+    let payable = 0;
+    let reference = "";
+
+    document.getElementById("year").textContent = new Date().getFullYear();
+
+    /* nav transparency on hero */
+    const nav = document.getElementById("nav");
+    function updateNav() {
+      nav.classList.toggle("is-scrolled", window.scrollY > 12);
+    }
+    updateNav();
+    window.addEventListener("scroll", updateNav, { passive: true });
+
+    const fmt = (n) => "₦" + Number(n || 0).toLocaleString();
+    const fmtMinor = (n) => Math.round(Number(n || 0) * 100);
+
+    function show(elId, msg) {
+      const el = document.getElementById(elId);
+      el.style.display = "block";
+      el.textContent = msg;
+    }
+    function hide(elId) {
+      const el = document.getElementById(elId);
+      el.style.display = "none";
+      el.textContent = "";
+    }
+    function showBox(boxId, obj) {
+      const el = document.getElementById(boxId);
+      el.style.display = "block";
+      el.textContent = JSON.stringify(obj, null, 2);
+    }
+    function hideBox(boxId) {
+      const el = document.getElementById(boxId);
+      el.style.display = "none";
+      el.textContent = "";
+    }
+
+    function toast(msg = "Copied!") {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.style.display = "block";
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => { t.style.display = "none"; }, 1100);
+    }
+
+    function isValidPayerId(payerId) {
+      const s = String(payerId || "").trim();
+      if (s.length < 5) return false;
+      return /^[a-zA-Z0-9\-_]+$/.test(s);
+    }
+
+    function calculate() {
+      hide("mainError");
+      hideBox("debug");
+
+      const amt = Number(document.getElementById("amount").value);
+      if (!amt || amt <= 0) {
+        document.getElementById("payBtn").disabled = true;
+        return show("mainError", "Enter a valid contract amount.");
+      }
+
+      lastAmount = amt;
+      breakdown.admin = amt * 0.0025;
+      breakdown.agreement = amt * 0.005;
+      payable = breakdown.admin + breakdown.agreement;
+
+      reference = "LSPPA-" + Date.now();
+
+      document.getElementById("sAdmin").textContent = fmt(breakdown.admin);
+      document.getElementById("sAgreement").textContent = fmt(breakdown.agreement);
+      document.getElementById("sTotal").textContent = fmt(payable);
+
+      const badge = document.getElementById("refBadge");
+      badge.style.display = "inline-flex";
+      badge.textContent = "Reference: " + reference;
+
+      const copyBtn = document.getElementById("copyRefBtn");
+      copyBtn.style.display = "inline-flex";
+
+      document.getElementById("payBtn").disabled = false;
+    }
+
+    function resetAll() {
+      document.getElementById("amount").value = "";
+      lastAmount = 0;
+      breakdown = { admin: 0, agreement: 0 };
+      payable = 0;
+      reference = "";
+
+      document.getElementById("sAdmin").textContent = "—";
+      document.getElementById("sAgreement").textContent = "—";
+      document.getElementById("sTotal").textContent = "—";
+
+      document.getElementById("refBadge").style.display = "none";
+      document.getElementById("copyRefBtn").style.display = "none";
+      document.getElementById("payBtn").disabled = true;
+
+      hide("mainError");
+      hide("modalError");
+      hideBox("debug");
+      hideBox("modalDebug");
+      closeModal();
+    }
+
+    function copyReference() {
+      if (!reference) return;
+      navigator.clipboard.writeText(reference).then(() => toast("Copied!"));
+    }
+
+    function openModal() {
+      hide("modalError");
+      hideBox("modalDebug");
+
+      if (!payable) {
+        return show("mainError", "Calculate first.");
+      }
+
+      document.getElementById("mContract").textContent = fmt(lastAmount);
+      document.getElementById("mAdmin").textContent = fmt(breakdown.admin);
+      document.getElementById("mAgreement").textContent = fmt(breakdown.agreement);
+      document.getElementById("mTotal").textContent = fmt(payable);
+      document.getElementById("mRef").textContent = reference;
+
+      document.getElementById("payerId").value = "";
+      document.getElementById("contractorEmail").value = "";
+      document.getElementById("contractorOrg").value = "";
+
+      document.getElementById("backdrop").style.display = "flex";
+      document.getElementById("payerId").focus();
+    }
+
+    function closeModal() {
+      document.getElementById("backdrop").style.display = "none";
+      hide("modalError");
+    }
+
+    function autofillFromPayerId() {
+      const payerId = document.getElementById("payerId").value.trim();
+      if (!payerId) {
+        document.getElementById("contractorEmail").value = "";
+        document.getElementById("contractorOrg").value = "";
+        return;
+      }
+      const safe = payerId.replace(/[^a-zA-Z0-9]/g, "").toLowerCase().slice(0, 18) || "contractor";
+      document.getElementById("contractorEmail").value = `${safe}@example.com`;
+      document.getElementById("contractorOrg").value = "Dummy Construction Ltd";
+    }
+
+    function openPreviewModal() {
+      // if user clicks Payment Step before calculating, show a demo breakdown
+      if (!payable) {
+        lastAmount = 100000000;
+        breakdown.admin = lastAmount * 0.0025;
+        breakdown.agreement = lastAmount * 0.005;
+        payable = breakdown.admin + breakdown.agreement;
+        reference = "LSPPA-" + Date.now();
+        document.getElementById("payBtn").disabled = true;
+      }
+      openModal();
+    }
+
+    // close modal on click outside
+    document.getElementById("backdrop").addEventListener("click", (e) => {
+      if (e.target && e.target.id === "backdrop") closeModal();
     });
-    window.addEventListener("resize", () => { resize(); makeDots(); }, { passive: true });
-  }
-</script>
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeModal();
+    });
+
+    async function verifyThenPay() {
+      hide("modalError");
+      hideBox("modalDebug");
+
+      const payerId = document.getElementById("payerId").value.trim();
+      if (!isValidPayerId(payerId)) {
+        return show("modalError", "Enter a valid Payer ID.");
+      }
+
+      const email = document.getElementById("contractorEmail").value.trim() || "contractor@example.com";
+
+      try {
+        let verification = null;
+
+        if (PAYER_VERIFY_URL) {
+          const url = PAYER_VERIFY_URL.includes("?")
+            ? `${PAYER_VERIFY_URL}${encodeURIComponent(payerId)}`
+            : `${PAYER_VERIFY_URL}?payerId=${encodeURIComponent(payerId)}`;
+
+          const vRes = await fetch(url, { method: "GET" });
+          verification = await vRes.json();
+
+          if (!vRes.ok || verification?.valid === false) {
+            return show("modalError", verification?.message || "Payer ID verification failed.");
+          }
+        }
+
+        await initializeCredo({ payerId, email, verification });
+      } catch (err) {
+        show("modalError", "Try again.");
+        showBox("modalDebug", { error: String(err) });
+      }
+    }
+
+    async function initializeCredo({ payerId, email }) {
+      if (!CREDO_PUBLIC_KEY || CREDO_PUBLIC_KEY.includes("REPLACE_WITH")) {
+        return show("modalError", "Missing Credo key.");
+      }
+
+      const payload = {
+        amount: fmtMinor(payable),
+        email,
+        currency: "NGN",
+        reference,
+        callbackUrl: CALLBACK_URL,
+        metadata: {
+          payerId,
+          organization: document.getElementById("contractorOrg").value.trim() || "Dummy Construction Ltd",
+          contractAmount: fmtMinor(lastAmount),
+          fees: {
+            admin: fmtMinor(breakdown.admin),
+            agreement: fmtMinor(breakdown.agreement),
+            total: fmtMinor(payable)
+          }
+        }
+      };
+
+      const url = `${CREDO_BASE_URL}/transaction/initialize`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: CREDO_PUBLIC_KEY,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = { message: "Non-JSON response received from gateway." };
+      }
+
+      const authorizationUrl = data?.data?.authorizationUrl || data?.data?.authorization_url;
+
+      if (res.ok && authorizationUrl) {
+        closeModal();
+        window.location.href = authorizationUrl;
+      } else {
+        show("modalError", data?.message || "Payment init failed.");
+        showBox("modalDebug", { requestUrl: url, payload, response: data, httpOk: res.ok, status: res.status });
+      }
+    }
+  </script>
+
+  <!-- ✅ SWARM SCRIPT (FIXED: runs after DOM is ready + guards against null) -->
+  <script>
+    window.addEventListener("DOMContentLoaded", () => {
+      /* =========================
+         HERO DOT SWARM (CANVAS)
+         - 1000–2000 dots
+         - cursor attractor
+         - NO O(n^2) connecting lines (performance)
+         ========================= */
+      const canvas = document.getElementById("swarm");
+      if (!canvas) {
+        console.warn("Swarm canvas not found. Skipping animation.");
+        return;
+      }
+
+      const ctx = canvas.getContext("2d", { alpha: true });
+      if (!ctx) {
+        console.warn("Canvas context not available.");
+        return;
+      }
+
+      const DPR = Math.min(2, window.devicePixelRatio || 1);
+      let W = 0, H = 0;
+
+      const pointer = { x: 0.5, y: 0.5, vx: 0, vy: 0, active: false };
+      let dots = [];
+      let rafId = null;
+
+      function getDotCount() {
+        const byArea = Math.floor((W * H) / 900);
+        return Math.max(1000, Math.min(2000, byArea));
+      }
+
+      function resize() {
+        W = canvas.clientWidth || window.innerWidth;
+        H = canvas.clientHeight || (window.innerHeight - 72);
+        canvas.width = Math.floor(W * DPR);
+        canvas.height = Math.floor(H * DPR);
+        canvas.style.width = W + "px";
+        canvas.style.height = H + "px";
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      }
+
+      function makeDots() {
+        const count = getDotCount();
+        dots = Array.from({ length: count }).map(() => ({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          vx: (Math.random() - 0.5) * 0.25,
+          vy: (Math.random() - 0.5) * 0.25,
+          r: 0.7 + Math.random() * 1.4,
+          a: 0.08 + Math.random() * 0.14,
+          tint: Math.random() < 0.55 ? "blue" : "green"
+        }));
+      }
+
+      function onMove(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        const y = (e.clientY - rect.top) / rect.height;
+
+        const nx = x * W;
+        const ny = y * H;
+
+        pointer.vx = (nx - pointer.x) * 0.06;
+        pointer.vy = (ny - pointer.y) * 0.06;
+        pointer.x = nx;
+        pointer.y = ny;
+        pointer.active = true;
+      }
+
+      function onLeave() {
+        pointer.active = false;
+      }
+
+      function tick() {
+        ctx.clearRect(0, 0, W, H);
+
+        const tx = pointer.active ? pointer.x : W * 0.5;
+        const ty = pointer.active ? pointer.y : H * 0.5;
+
+        for (let i = 0; i < dots.length; i++) {
+          const d = dots[i];
+
+          const dx = tx - d.x;
+          const dy = ty - d.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+          const pull = pointer.active ? Math.min(1, 160 / dist) : 0.05;
+
+          d.vx += (dx / dist) * 0.0085 * pull + pointer.vx * 0.00025;
+          d.vy += (dy / dist) * 0.0085 * pull + pointer.vy * 0.00025;
+
+          d.vx *= 0.987;
+          d.vy *= 0.987;
+
+          const sp = Math.sqrt(d.vx * d.vx + d.vy * d.vy);
+          const max = 0.95;
+          if (sp > max) {
+            d.vx = (d.vx / sp) * max;
+            d.vy = (d.vy / sp) * max;
+          }
+
+          d.x += d.vx;
+          d.y += d.vy;
+
+          if (d.x < -30) d.x = W + 30;
+          if (d.x > W + 30) d.x = -30;
+          if (d.y < -30) d.y = H + 30;
+          if (d.y > H + 30) d.y = -30;
+
+          const c = d.tint === "blue"
+            ? `rgba(11,77,162,${d.a})`
+            : `rgba(0,135,83,${d.a})`;
+
+          ctx.beginPath();
+          ctx.fillStyle = c;
+          ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        rafId = requestAnimationFrame(tick);
+      }
+
+      function initSwarm() {
+        resize();
+        makeDots();
+        if (rafId) cancelAnimationFrame(rafId);
+        tick();
+      }
+
+      const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (!reduceMotion) {
+        initSwarm();
+        window.addEventListener("resize", () => { resize(); makeDots(); }, { passive: true });
+        window.addEventListener("pointermove", onMove, { passive: true });
+        window.addEventListener("pointerleave", onLeave, { passive: true });
+      } else {
+        resize();
+        makeDots();
+        ctx.clearRect(0, 0, W, H);
+        dots.forEach(d => {
+          ctx.beginPath();
+          ctx.fillStyle = d.tint === "blue" ? "rgba(11,77,162,0.14)" : "rgba(0,135,83,0.10)";
+          ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        window.addEventListener("resize", () => { resize(); makeDots(); }, { passive: true });
+      }
+    });
+  </script>
+</body>
+
+</html>
