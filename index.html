@@ -51,7 +51,6 @@
       scroll-behavior: smooth;
     }
 
-    /* Subtle blur glow blobs behind everything */
     body::before {
       content: "";
       position: fixed;
@@ -71,7 +70,6 @@
       margin: 0 auto;
     }
 
-    /* NAV — transparent on hero */
     .nav {
       position: sticky;
       top: 0;
@@ -141,7 +139,6 @@
       transform: translateY(1px);
     }
 
-    /* HERO */
     .hero {
       position: relative;
       min-height: calc(100vh - 72px);
@@ -182,7 +179,6 @@
       }
     }
 
-    /* dot swarm canvas */
     #swarm {
       position: absolute;
       inset: 0;
@@ -194,7 +190,6 @@
       pointer-events: none;
     }
 
-    /* subtle noise */
     .hero::after {
       content: "";
       position: absolute;
@@ -284,7 +279,6 @@
       box-shadow: var(--glow-neutral);
     }
 
-    /* SECTION */
     section {
       padding: 42px 0;
     }
@@ -327,7 +321,6 @@
       letter-spacing: -0.02em;
     }
 
-    /* IMPORTANT: make the body a flex column so we can pin buttons */
     .card-body {
       padding: 18px 20px 20px;
       flex: 1;
@@ -521,7 +514,6 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
 
-    /* MODAL — footer pinned */
     .backdrop {
       position: fixed;
       inset: 0;
@@ -666,7 +658,6 @@
 </head>
 
 <body>
-  <!-- NAVBAR -->
   <div class="nav" id="nav">
     <div class="container">
       <div class="nav-inner">
@@ -688,7 +679,6 @@
     </div>
   </div>
 
-  <!-- HERO -->
   <header class="hero">
     <canvas id="swarm" aria-hidden="true"></canvas>
 
@@ -707,11 +697,9 @@
     </div>
   </header>
 
-  <!-- CALCULATOR -->
   <section id="calculator">
     <div class="container">
       <div class="calc-wrap">
-        <!-- Inputs -->
         <div class="card">
           <div class="card-head">
             <div class="head-title">Calculator</div>
@@ -725,7 +713,6 @@
 
             <div id="debug" class="codebox"></div>
 
-            <!-- forced to bottom -->
             <div class="push-bottom">
               <button id="calcBtn" class="btn-full btn-calc" onclick="calculate()">Calculate</button>
               <div id="mainError" class="error"></div>
@@ -733,7 +720,6 @@
           </div>
         </div>
 
-        <!-- Summary -->
         <div class="card">
           <div class="card-head">
             <div class="head-title">Summary</div>
@@ -763,7 +749,6 @@
     </div>
   </section>
 
-  <!-- PAYMENT MODAL -->
   <div id="backdrop" class="backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal">
       <div class="modal-head">
@@ -810,10 +795,8 @@
     </div>
   </div>
 
-  <!-- TOAST -->
   <div id="toast" class="toast">Copied!</div>
 
-  <!-- FOOTER -->
   <footer>
     <div class="container">
       <div class="footer-inner">
@@ -823,37 +806,30 @@
     </div>
   </footer>
 
+  <!-- ======================
+       APP SCRIPT (SAFE)
+       ====================== -->
   <script>
-    /**
-     * CONFIG
-     * NOTE: GitHub Pages is static. Credo init from the browser may fail due to CORS / auth rules.
-     * Keep as-is for UI demo; for production use a backend.
-     */
+    // CONFIG (UI demo)
     const CREDO_BASE_URL = "https://api.credodemo.com";
     const CREDO_PUBLIC_KEY = "REPLACE_WITH_YOUR_PUBLIC_KEY";
     const CALLBACK_URL = "https://yourdomain.com/payment-callback";
-    const PAYER_VERIFY_URL = ""; // optional
+    const PAYER_VERIFY_URL = "";
 
-    /**
-     * STATE
-     */
     let lastAmount = 0;
     let breakdown = { admin: 0, agreement: 0 };
     let payable = 0;
     let reference = "";
 
-    document.getElementById("year").textContent = new Date().getFullYear();
-
-    /* nav transparency on hero */
-    const nav = document.getElementById("nav");
-    function updateNav() {
-      nav.classList.toggle("is-scrolled", window.scrollY > 12);
-    }
-    updateNav();
-    window.addEventListener("scroll", updateNav, { passive: true });
-
     const fmt = (n) => "₦" + Number(n || 0).toLocaleString();
     const fmtMinor = (n) => Math.round(Number(n || 0) * 100);
+
+    document.getElementById("year").textContent = new Date().getFullYear();
+
+    const nav = document.getElementById("nav");
+    function updateNav() { nav.classList.toggle("is-scrolled", window.scrollY > 12); }
+    updateNav();
+    window.addEventListener("scroll", updateNav, { passive: true });
 
     function show(elId, msg) {
       const el = document.getElementById(elId);
@@ -915,9 +891,7 @@
       badge.style.display = "inline-flex";
       badge.textContent = "Reference: " + reference;
 
-      const copyBtn = document.getElementById("copyRefBtn");
-      copyBtn.style.display = "inline-flex";
-
+      document.getElementById("copyRefBtn").style.display = "inline-flex";
       document.getElementById("payBtn").disabled = false;
     }
 
@@ -988,19 +962,16 @@
     }
 
     function openPreviewModal() {
-      // if user clicks Payment Step before calculating, show a demo breakdown
       if (!payable) {
         lastAmount = 100000000;
         breakdown.admin = lastAmount * 0.0025;
         breakdown.agreement = lastAmount * 0.005;
         payable = breakdown.admin + breakdown.agreement;
         reference = "LSPPA-" + Date.now();
-        document.getElementById("payBtn").disabled = true;
       }
       openModal();
     }
 
-    // close modal on click outside
     document.getElementById("backdrop").addEventListener("click", (e) => {
       if (e.target && e.target.id === "backdrop") closeModal();
     });
@@ -1020,22 +991,20 @@
       const email = document.getElementById("contractorEmail").value.trim() || "contractor@example.com";
 
       try {
-        let verification = null;
-
         if (PAYER_VERIFY_URL) {
           const url = PAYER_VERIFY_URL.includes("?")
             ? `${PAYER_VERIFY_URL}${encodeURIComponent(payerId)}`
             : `${PAYER_VERIFY_URL}?payerId=${encodeURIComponent(payerId)}`;
 
           const vRes = await fetch(url, { method: "GET" });
-          verification = await vRes.json();
+          const verification = await vRes.json();
 
           if (!vRes.ok || verification?.valid === false) {
             return show("modalError", verification?.message || "Payer ID verification failed.");
           }
         }
 
-        await initializeCredo({ payerId, email, verification });
+        await initializeCredo({ payerId, email });
       } catch (err) {
         show("modalError", "Try again.");
         showBox("modalDebug", { error: String(err) });
@@ -1077,11 +1046,8 @@
       });
 
       let data = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = { message: "Non-JSON response received from gateway." };
-      }
+      try { data = await res.json(); }
+      catch { data = { message: "Non-JSON response received from gateway." }; }
 
       const authorizationUrl = data?.data?.authorizationUrl || data?.data?.authorization_url;
 
@@ -1095,15 +1061,13 @@
     }
   </script>
 
-  <!-- ✅ SWARM SCRIPT (FIXED: runs after DOM is ready + guards against null) -->
+  <!-- ======================
+       SWARM SCRIPT (FIXED)
+       - runs after DOMContentLoaded
+       - guards against null
+       ====================== -->
   <script>
     window.addEventListener("DOMContentLoaded", () => {
-      /* =========================
-         HERO DOT SWARM (CANVAS)
-         - 1000–2000 dots
-         - cursor attractor
-         - NO O(n^2) connecting lines (performance)
-         ========================= */
       const canvas = document.getElementById("swarm");
       if (!canvas) {
         console.warn("Swarm canvas not found. Skipping animation.");
@@ -1123,11 +1087,6 @@
       let dots = [];
       let rafId = null;
 
-      function getDotCount() {
-        const byArea = Math.floor((W * H) / 900);
-        return Math.max(1000, Math.min(2000, byArea));
-      }
-
       function resize() {
         W = canvas.clientWidth || window.innerWidth;
         H = canvas.clientHeight || (window.innerHeight - 72);
@@ -1136,6 +1095,11 @@
         canvas.style.width = W + "px";
         canvas.style.height = H + "px";
         ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      }
+
+      function getDotCount() {
+        const byArea = Math.floor((W * H) / 900);
+        return Math.max(1000, Math.min(2000, byArea));
       }
 
       function makeDots() {
@@ -1166,9 +1130,7 @@
         pointer.active = true;
       }
 
-      function onLeave() {
-        pointer.active = false;
-      }
+      function onLeave() { pointer.active = false; }
 
       function tick() {
         ctx.clearRect(0, 0, W, H);
@@ -1178,7 +1140,6 @@
 
         for (let i = 0; i < dots.length; i++) {
           const d = dots[i];
-
           const dx = tx - d.x;
           const dy = ty - d.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -1206,12 +1167,10 @@
           if (d.y < -30) d.y = H + 30;
           if (d.y > H + 30) d.y = -30;
 
-          const c = d.tint === "blue"
+          ctx.beginPath();
+          ctx.fillStyle = d.tint === "blue"
             ? `rgba(11,77,162,${d.a})`
             : `rgba(0,135,83,${d.a})`;
-
-          ctx.beginPath();
-          ctx.fillStyle = c;
           ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
           ctx.fill();
         }
